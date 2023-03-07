@@ -1,0 +1,1253 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["ui", "config", "gateway_interface", "parameters", "stats", "logging", "bss"]
+}
+
+// *****************************************************************************
+//   SCHÉMA UI
+// *****************************************************************************
+enum GAIN_MODE_TYPE {
+  ALC
+  FGM
+
+  @@schema("ui")
+}
+
+enum POLARIZATION_TYPE {
+  LHCP
+  RHCP
+  VLP
+  HLP
+
+  @@schema("ui")
+}
+
+enum SERVICE_SEGMENT_TYPE {
+  DTH
+  Gateway
+  Trunking_Steerable_Down_Steerable_Up
+  Trunking_Steerable_Down_Phased_Array_Up
+  Trunking_Phased_Array_Down_Steerable_Up
+  Trunking_Phased_Array_Down_Phased_Array_Up
+  Mobile_Grid_Beam
+  Mobile_Follow_Me
+  Point_to_Point
+  Multicast_Terminal
+
+  @@schema("ui")
+}
+
+enum SERVICE_SEGMENT_DATA_TYPE {
+  Data
+  Bandwidth
+
+  @@schema("ui")
+}
+
+enum LINK_DIRECTION_TYPE {
+  UpLink
+  DownLink
+
+  @@schema("ui")
+}
+
+enum FREQUENCY_BAND_TYPE {
+  C
+  Ku
+  Ka
+  Q
+  V
+
+  @@schema("ui")
+}
+
+enum BEAM_TYPE {
+  Fixed
+  Uniform
+  Non_uniform
+  Follow_me
+
+  @@schema("ui")
+}
+
+enum TERMINAL_METHOD_TYPE {
+  Population_density
+  Random_uniform
+  Uniform_grid
+
+  @@schema("ui")
+}
+
+enum PLAN_STATUS_TYPE {
+  New
+  Ready
+  In_Progress
+  Completed
+  Failed
+
+  @@schema("ui")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  plans      Plan[]
+
+  @@map("user")
+  @@schema("ui")
+}
+
+model Plan {
+  id                Int              @id @default(autoincrement())
+  plan_name         String
+  number_segments   Int
+  status            PLAN_STATUS_TYPE @default(New)
+  time_period_start DateTime
+  time_period_end   DateTime
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+  user              User             @relation(fields: [user_id], references: [id])
+  user_id           Int
+  service_segments  ServiceSegment[]
+
+  @@map("plan")
+  @@schema("ui")
+}
+
+model ServiceSegment {
+  id                               Int                       @id @default(autoincrement())
+  service_segment_name             String
+  service_segment_type             SERVICE_SEGMENT_TYPE
+  service_segment_data_type        SERVICE_SEGMENT_DATA_TYPE
+  service_segment_priority         Int                       @default(0)
+  service_segment_gateway_handover Boolean                   @default(true)
+  defrag_userlink_allowed          Boolean                   @default(false)
+  service_segment_gain_mode        GAIN_MODE_TYPE
+  created_at                       DateTime                  @default(now())
+  updated_at                       DateTime                  @updatedAt
+  plan                             Plan                      @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  plan_id                          Int
+  service_segment_group            ServiceSegmentGroup       @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  group_id                         Int
+  regions                          Region[]
+  service_params                   ServiceParam[]
+  regulatory_constraints           RegulatoryConstraint[]
+  candidate_beams                  CandidateBeam[]
+  gateways                         SegmentGateway[]
+  method_terminals                 MethodTerminal[]
+  terminals                        SegmentTerminal[]
+  connectivities                   Connectivity[]
+
+  @@map("service_segment")
+  @@schema("ui")
+}
+
+model ServiceSegmentGroup {
+  id                         Int              @id @default(autoincrement())
+  service_segment_group_name String
+  created_at                 DateTime         @default(now())
+  updated_at                 DateTime         @updatedAt
+  service_segments           ServiceSegment[]
+
+  @@map("service_segment_group")
+  @@schema("ui")
+}
+
+model Region {
+  id                 Int            @id @default(autoincrement())
+  region_name        String
+  coordinates        Json
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+  service_segment    ServiceSegment @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id Int
+
+  @@map("region")
+  @@schema("ui")
+}
+
+model ServiceParam {
+  id                 Int                 @id @default(autoincrement())
+  band               FREQUENCY_BAND_TYPE
+  direction          LINK_DIRECTION_TYPE
+  polarization       POLARIZATION_TYPE
+  frequency_start    Float
+  frequency_end      Float
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  service_segment    ServiceSegment      @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id Int
+
+  @@map("service_param")
+  @@schema("ui")
+}
+
+model RegulatoryConstraint {
+  id                          Int                 @id @default(autoincrement())
+  regulatory_constraint_name  String
+  direction                   LINK_DIRECTION_TYPE
+  polarization                POLARIZATION_TYPE
+  min_frequency               Float
+  max_frequency               Float
+  max_copol_directivity       Float
+  min_crosspol_discrimination Float
+  pfd_level                   Float
+  coordinates                 Json
+  created_at                  DateTime            @default(now())
+  updated_at                  DateTime            @updatedAt
+  service_segment             ServiceSegment      @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id          Int
+
+  @@map("regulatory_constraint")
+  @@schema("ui")
+}
+
+model CandidateBeam {
+  id                      Int            @id @default(autoincrement())
+  beam_type               BEAM_TYPE?     @default(Fixed)
+  beam_diameter           Float?
+  spacing                 Float?
+  beam_diameter_range_min Float?
+  beam_diameter_range_max Float?
+  latitude                Float?
+  longitude               Float?
+  created_at              DateTime       @default(now())
+  updated_at              DateTime       @updatedAt
+  service_segment         ServiceSegment @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id      Int
+
+  @@map("candidate_beam")
+  @@schema("ui")
+}
+
+model SegmentGateway {
+  id                 Int                 @id @default(autoincrement())
+  gateway_name       String
+  latitude           Float
+  longitude          Float
+  polarization       POLARIZATION_TYPE
+  direction          LINK_DIRECTION_TYPE
+  min_frequency      Float
+  max_frequency      Float
+  eirp               Float
+  gt                 Float
+  npr                Float
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  service_segment    ServiceSegment      @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id Int
+  gateway_modems     GatewayModem[]
+
+  @@map("segment_gateway")
+  @@schema("ui")
+}
+
+model GatewayModem {
+  id              Int                 @id @default(autoincrement())
+  latitude        Float
+  longitude       Float
+  polarization    POLARIZATION_TYPE
+  direction       LINK_DIRECTION_TYPE
+  min_frequency   Float
+  max_frequency   Float
+  max_span        Float
+  max_agg_tot_sym Float
+  rof             Float
+  max_sym_rate    Float
+  min_sym_rate    Float
+  max_num_slice   Float?
+  max_num_carrier Float?
+  max_term        Float?
+  created_at      DateTime            @default(now())
+  updated_at      DateTime            @updatedAt
+  gateway         SegmentGateway      @relation(fields: [gateway_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  gateway_id      Int
+
+  @@map("gateway_modem")
+  @@schema("ui")
+}
+
+model MethodTerminal {
+  id                                  Int                  @id @default(autoincrement())
+  terminal_method                     TERMINAL_METHOD_TYPE
+  avg_num_of_termninals_per_square_km Int
+  method_terminals                    Json
+  created_at                          DateTime             @default(now())
+  updated_at                          DateTime             @updatedAt
+  service_segment                     ServiceSegment       @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id                  Int
+
+  @@map("method_terminal")
+  @@schema("ui")
+}
+
+model SegmentTerminal {
+  id                          Int                    @id @default(autoincrement())
+  latitude                    Float
+  longitude                   Float
+  eirp                        Float
+  gt                          Float
+  satellite_eirp              Float?
+  bandwidth_forward           Float?
+  bandwidth_return            Float?
+  mir_forward                 Float?
+  mir_return                  Float?
+  cir_forward                 Float?
+  cir_return                  Float?
+  target_availability_forward Float?
+  target_availability_return  Float?
+  flight_paths                Json?
+  temporal_variations_forward Json?
+  temporal_variations_return  Json?
+  modcods_forward             Json?
+  modcods_return              Json?
+  created_at                  DateTime               @default(now())
+  updated_at                  DateTime               @updatedAt
+  service_segment             ServiceSegment         @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id          Int
+  terminal_connectivities     TerminalConnectivity[]
+
+  @@map("segment_terminal")
+  @@schema("ui")
+}
+
+model Connectivity {
+  id                      Int                    @id @default(autoincrement())
+  mir                     Float?
+  cir                     Float?
+  availability            Float?
+  satellite_eirp          Float?
+  bandwidth               Float?
+  temporal_variations     Json
+  modcods                 Json
+  created_at              DateTime               @default(now())
+  updated_at              DateTime               @updatedAt
+  service_segment         ServiceSegment         @relation(fields: [service_segment_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service_segment_id      Int
+  terminal_connectivities TerminalConnectivity[]
+
+  @@map("connectivity")
+  @@schema("ui")
+}
+
+model TerminalConnectivity {
+  uplink_terminal     Boolean         @default(false)
+  downlink_terminal   Boolean         @default(false)
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  segment_terminal    SegmentTerminal @relation(fields: [segment_terminal_id], references: [id])
+  segment_terminal_id Int
+  connectivity        Connectivity    @relation(fields: [connectivity_id], references: [id])
+  connectivity_id     Int
+
+  @@id([segment_terminal_id, connectivity_id])
+  @@map("terminal_connectivity")
+  @@schema("ui")
+}
+
+// *****************************************************************************
+//   SCHÉMA CONFIG
+// *****************************************************************************
+
+enum carrier_type {
+  NormalCarrier
+
+  @@schema("config")
+}
+
+enum gain_mode {
+  ALC
+  FGM
+
+  @@schema("config")
+}
+
+enum link_path {
+  ForwardPath
+  ReturnPath
+
+  @@schema("config")
+}
+
+enum polarization {
+  LHCP
+  RHCP
+  VLP
+  HLP
+
+  @@schema("config")
+}
+
+enum transmit_direction {
+  Transmit
+  Receive
+
+  @@schema("config")
+}
+
+enum slice_type {
+  NormalSlice
+
+  @@schema("config")
+}
+
+model BasebandBeam {
+  beam_id                                                        BigInt             @id
+  beam_name                                                      String?            @db.VarChar
+  gateway_id                                                     BigInt?
+  beam_direction                                                 link_path?
+  beam_uplink_polarization                                       polarization?
+  beam_downlink_polarization                                     polarization?
+  beam_coordinates                                               Json?
+  baseband_carriers                                              BasebandCarrier[]
+  baseband_slices                                                BasebandSlice[]
+  baseband_terminal_baseband_terminal_link_idTobaseband_beam     BasebandTerminal[] @relation("baseband_terminal_link_idTobaseband_beam")
+  baseband_terminal_baseband_terminal_mobility_idTobaseband_beam BasebandTerminal[] @relation("baseband_terminal_mobility_idTobaseband_beam")
+  link_budget_results                                            LinkBudgetResult[]
+
+  @@map("baseband_beam")
+  @@schema("config")
+}
+
+model BasebandCarrier {
+  carrier_id            BigInt        @id
+  beam_id               BigInt?
+  carrier_type          carrier_type?
+  capability_id         BigInt?
+  pool_id               BigInt?
+  psd_limit             Float?
+  min_modcod_id         BigInt?
+  max_modcod_id         BigInt?
+  carrier_properties_id BigInt?
+  uplink_frequency      Float?
+  downlink_frequency    Float?
+  symbol_rate           Float?
+  roll_off              Float?
+  gw_tx_power           Float?
+  baseband_beam         BasebandBeam? @relation(fields: [beam_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("baseband_carrier")
+  @@schema("config")
+}
+
+model BasebandSlice {
+  slice_id            BigInt        @id
+  beam_id             BigInt?
+  slice_type          slice_type?
+  capability_id       BigInt?
+  pool_id             BigInt?
+  min_modcod_id       BigInt?
+  max_modcod_id       BigInt?
+  slice_properties_id BigInt?
+  uplink_frequency    Float?
+  downlink_frequency  Float?
+  bandwidth           Float?
+  roll_off            Float?
+  max_psd             Float?
+  baseband_beam       BasebandBeam? @relation(fields: [beam_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("baseband_slice")
+  @@schema("config")
+}
+
+model BasebandTerminal {
+  terminal_id                                                BigInt        @id
+  link_id                                                    BigInt?
+  mobility_id                                                BigInt?
+  baseband_beam_baseband_terminal_link_idTobaseband_beam     BasebandBeam? @relation("baseband_terminal_link_idTobaseband_beam", fields: [link_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+  baseband_beam_baseband_terminal_mobility_idTobaseband_beam BasebandBeam? @relation("baseband_terminal_mobility_idTobaseband_beam", fields: [mobility_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("baseband_terminal")
+  @@schema("config")
+}
+
+model BeamDefinition {
+  beam_id                                                   BigInt              @id
+  beam_name                                                 String?             @db.VarChar
+  direction                                                 transmit_direction?
+  path                                                      link_path?
+  beam_polarization                                         polarization?
+  beam_weights                                              Json?
+  beam_routing_beam_routing_input_beam_idTobeam_definition  BeamRouting[]       @relation("beam_routing_input_beam_idTobeam_definition")
+  beam_routing_beam_routing_output_beam_idTobeam_definition BeamRouting[]       @relation("beam_routing_output_beam_idTobeam_definition")
+
+  @@map("beam_definition")
+  @@schema("config")
+}
+
+model BeamRouting {
+  beam_routing_id                                              Int             @id @default(autoincrement())
+  input_beam_id                                                BigInt?
+  output_beam_id                                               BigInt?
+  input_channel_start                                          BigInt?
+  output_channel_start                                         BigInt?
+  channel_width                                                BigInt?
+  alc_enabled                                                  Boolean?
+  alc_target_power                                             Float?
+  additional_gain                                              Float?
+  beam_definition_beam_routing_input_beam_idTobeam_definition  BeamDefinition? @relation("beam_routing_input_beam_idTobeam_definition", fields: [input_beam_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+  beam_definition_beam_routing_output_beam_idTobeam_definition BeamDefinition? @relation("beam_routing_output_beam_idTobeam_definition", fields: [output_beam_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("beam_routing")
+  @@schema("config")
+}
+
+model Cell {
+  cell_id             BigInt         @id
+  baseband_beam_ids   BigInt[]
+  satellite_beam_ids  BigInt[]
+  center_coordinate   Float[]
+  polygon_coordinates Json?
+  cell_metadatas      CellMetadata[]
+
+  @@map("cell")
+  @@schema("config")
+}
+
+model CellMetadata {
+  cell_id        BigInt
+  metadata_id    String  @db.VarChar
+  metadata_value String? @db.VarChar
+  cell           Cell    @relation(fields: [cell_id], references: [cell_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([cell_id, metadata_id])
+  @@map("cell_metadata")
+  @@schema("config")
+}
+
+model Terminal {
+  terminal_id         BigInt             @id
+  location            Float[]
+  mobile_user         Boolean?
+  placement_id        BigInt?
+  kos_generated       Boolean?
+  link_budget_results LinkBudgetResult[]
+  mobility_histories  MobilityHistory[]
+  terminal_placement  TerminalPlacement? @relation(fields: [placement_id], references: [terminal_placement_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("terminal")
+  @@schema("config")
+}
+
+model TerminalPlacement {
+  terminal_placement_id                                            BigInt       @id
+  terminal_name                                                    String?      @db.VarChar
+  antenna_diameter                                                 Float?
+  antenna_efficiency                                               Float?
+  cost                                                             Float?
+  eirp_spec                                                        Float?
+  gt_spec                                                          Float?
+  tsky                                                             Float?
+  tsys                                                             Float?
+  power_spec                                                       Float?
+  npr                                                              Float?
+  xpol_isolation_tx                                                Float?
+  xpol_isolation_rx                                                Float?
+  power_limit                                                      Float?
+  upc_error_mean                                                   Float?
+  upc_error_variance                                               Float?
+  modcod_table_tx_id                                               BigInt?
+  modcod_table_rx_id                                               BigInt?
+  loss_ant_wet_degraded                                            Float?
+  loss_ant_wet_clear_sky                                           Float?
+  loss_pointing_error                                              Float?
+  terminals                                                        Terminal[]
+  modcod_table_terminal_placement_modcod_table_rx_idTomodcod_table ModcodTable? @relation("terminal_placement_modcod_table_rx_idTomodcod_table", fields: [modcod_table_rx_id], references: [table_id], onDelete: NoAction, onUpdate: NoAction)
+  modcod_table_terminal_placement_modcod_table_tx_idTomodcod_table ModcodTable? @relation("terminal_placement_modcod_table_tx_idTomodcod_table", fields: [modcod_table_tx_id], references: [table_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("terminal_placement")
+  @@schema("config")
+}
+
+model Gateway {
+  gateway_id                BigInt                   @id
+  name                      String?                  @db.VarChar
+  location                  Float[]
+  antenna_size              Float?
+  tx_antenna_efficiency     Float?
+  rx_antenna_efficiency     Float?
+  antenna_wetting_losses    Float?
+  clear_sky_wetting_losses  Float?
+  tx_xpol_isolation         Float?
+  rx_xpol_isolation         Float?
+  lhcp_max_eirp             Float?
+  lhcp_max_power            Float?
+  lhcp_transmit_hpa_nom_npr Float?
+  lhcp_transmit_hpa_max_npr Float?
+  rhcp_max_eirp             Float?
+  rhcp_max_power            Float?
+  rhcp_transmit_hpa_nom_npr Float?
+  rhcp_transmit_hpa_max_npr Float?
+  lhcp_gt                   Float?
+  lhcp_system_temp          Float?
+  lhcp_sky_temp             Float?
+  rhcp_gt                   Float?
+  rhcp_system_temp          Float?
+  rhcp_sky_temp             Float?
+  upc_error                 Float?
+  pointing_error_deg        Float?
+  gateway_beam_associations GatewayBeamAssociation[]
+
+  @@map("gateway")
+  @@schema("config")
+}
+
+model GatewayBeamAssociation {
+  gateway_id   BigInt
+  polarization polarization
+  beam_id      BigInt?
+  gateway      Gateway      @relation(fields: [gateway_id], references: [gateway_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([gateway_id, polarization])
+  @@map("gateway_beam_association")
+  @@schema("config")
+}
+
+model LinkBudgetResult {
+  terminal_id                         BigInt
+  beam_id                             BigInt
+  baseband_signal_id                  BigInt
+  path                                link_path
+  uplink_eirp                         Float?
+  uplink_gain                         Float?
+  uplink_g_over_t                     Float?
+  uplink_path_loss                    Float?
+  uplink_fade                         Float?
+  uplink_noise_bandwidth              Float?
+  uplink_c_over_n                     Float?
+  uplink_signal_power                 Float?
+  uplink_adjacent_beam_interference   Float?
+  uplink_rx_cross_pol_interference    Float?
+  uplink_tx_cross_pol_interference    Float?
+  uplink_intermod                     Float?
+  uplink_aggregate_c_over_i           Float?
+  downlink_eirp                       Float?
+  downlink_gain                       Float?
+  downlink_g_over_t                   Float?
+  downlink_path_loss                  Float?
+  downlink_fade                       Float?
+  downlink_noise_bandwidth            Float?
+  downlink_c_over_n                   Float?
+  downlink_signal_power               Float?
+  downlink_adjacent_beam_interference Float?
+  downlink_rx_cross_pol_interference  Float?
+  downlink_tx_cross_pol_interference  Float?
+  downlink_intermod                   Float?
+  downlink_aggregate_c_over_i         Float?
+  es_no                               Float?
+  bits_per_symbol                     Float?
+  baseband_beam                       BasebandBeam @relation(fields: [beam_id], references: [beam_id], onDelete: NoAction, onUpdate: NoAction)
+  terminal                            Terminal     @relation(fields: [terminal_id], references: [terminal_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([terminal_id, beam_id, baseband_signal_id, path])
+  @@map("link_budget_result")
+  @@schema("config")
+}
+
+model MobilityHistory {
+  terminal_id BigInt
+  time        DateTime @db.Timestamp(6)
+  position    Json?
+  terminal    Terminal @relation(fields: [terminal_id], references: [terminal_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([terminal_id, time])
+  @@index([time], map: "mobility_history_time_index")
+  @@map("mobility_history")
+  @@schema("config")
+}
+
+model Modcod {
+  modcod_id      BigInt  @id
+  name           String? @db.VarChar
+  spec_eff_ideal Float?
+  spec_eff       Float?
+  esno           Float?
+
+  @@map("modcod")
+  @@schema("config")
+}
+
+model ModcodTable {
+  table_id                                                               BigInt              @id
+  modcods                                                                BigInt[]
+  terminal_placement_terminal_placement_modcod_table_rx_idTomodcod_table TerminalPlacement[] @relation("terminal_placement_modcod_table_rx_idTomodcod_table")
+  terminal_placement_terminal_placement_modcod_table_tx_idTomodcod_table TerminalPlacement[] @relation("terminal_placement_modcod_table_tx_idTomodcod_table")
+
+  @@map("modcod_table")
+  @@schema("config")
+}
+
+// *****************************************************************************
+//   SCHÉMA BSS
+// *****************************************************************************
+
+enum sla_type {
+  DTH
+  GatewayMHz
+  GatewayDataRate
+  MobilityMHz
+  MobilityDataRate
+  PointToSinglePoint
+  PointToMultiPoint
+  Trunking
+
+  @@schema("bss")
+}
+
+enum beam_type {
+  Uniform
+  Fixed
+  NonUniform
+  FollowMe
+
+  @@schema("bss")
+}
+
+model dth_copol_data {
+  id                 Int      @id @default(autoincrement())
+  service_id         BigInt?
+  area               Json?
+  copol_isolation_db Float?
+  service            service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "dth_copol_data_id_index")
+  @@map("dth_copol_data")
+  @@schema("bss")
+}
+
+model dth_eirp_data {
+  id                  Int      @id @default(autoincrement())
+  service_id          BigInt?
+  coordinate          Json?
+  eirp_density_dbw_hz Float?
+  service             service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "dth_eirp_data_id_index")
+  @@map("dth_eirp_data")
+  @@schema("bss")
+}
+
+model dth_sla {
+  id                   Int      @id @default(autoincrement())
+  service_id           BigInt?  @unique
+  service_area         Json?
+  bandwidth_mhz        Float?
+  eirp_density_dbw_hz  Float?
+  input_pfd_dbw_m2     Float?
+  gain_over_temp_db_k  Float?
+  xpol_isolation_db    Float?
+  radiated_c_over_i_db Float?
+  uplink_c_over_i_db   Float?
+  downlink_c_over_i_db Float?
+  service              service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "dth_sla_id_index")
+  @@map("dth_sla")
+  @@schema("bss")
+}
+
+model gateway_choice {
+  id                             Int      @id @default(autoincrement())
+  service_id                     BigInt?
+  gateway_id                     BigInt?
+  gateway_priority               Int?
+  is_spare                       Boolean?
+  permitted_uplink_freq_ranges   Json?
+  permitted_downlink_freq_ranges Json?
+  service                        service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "gateway_choice_id_index")
+  @@map("gateway_choice")
+  @@schema("bss")
+}
+
+model gateway_datarate_sla {
+  id                             Int      @id @default(autoincrement())
+  service_id                     BigInt?  @unique
+  terminal_id                    BigInt?
+  fwd_max_information_mbps       Float?
+  fwd_committed_information_mbps Float?
+  fwd_availability_target_perc   Float?
+  rtn_max_information_mbps       Float?
+  rtn_committed_information_mbps Float?
+  rtn_availability_target_perc   Float?
+  service_area                   Json?
+  service                        service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("gateway_datarate_sla")
+  @@schema("bss")
+}
+
+model gateway_mhz_sla {
+  id                    Int      @id @default(autoincrement())
+  service_id            BigInt?  @unique
+  eirp_density_dbw_hz   Float?
+  input_pfd_dbw_m2      Float?
+  gain_over_temp_db_k   Float?
+  uplink_c_over_i_db    Float?
+  downlink_c_over_i_db  Float?
+  required_uplink_mhz   Float?
+  required_downlink_mhz Float?
+  service_area          Json?
+  service               service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("gateway_mhz_sla")
+  @@schema("bss")
+}
+
+model mobility_datarate_sla {
+  id                                      Int      @id @default(autoincrement())
+  service_id                              BigInt?  @unique
+  fwd_max_information_mbps                Float?
+  fwd_committed_information_mbps          Float?
+  fwd_availability_target_perc            Float?
+  rtn_max_information_mbps                Float?
+  rtn_committed_information_mbps          Float?
+  rtn_availability_target_perc            Float?
+  terminal_id                             BigInt?
+  following_beam                          Boolean?
+  start_time                              BigInt?
+  is_relative                             Boolean?
+  period_duration_hrs                     Float?
+  path_adaptation_via_baseband_authorized Boolean?
+  beam_grid_areas                         Json?
+  service                                 service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("mobility_datarate_sla")
+  @@schema("bss")
+}
+
+model mobility_gateway_choice {
+  location_id                      BigInt
+  gateway_id                       BigInt
+  gateway_priority                 Int?
+  is_spare                         Boolean?
+  permitted_uplink_freq_ranges     Json?
+  permitted_downlink_freq_ranges   Json?
+  mobility_gateway_choice_location mobility_gateway_choice_location @relation(fields: [location_id], references: [location_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([location_id, gateway_id])
+  @@index([gateway_id], map: "mobility_gateway_choice_gateway_id_index")
+  @@map("mobility_gateway_choice")
+  @@schema("bss")
+}
+
+model mobility_gateway_choice_location {
+  location_id             BigInt                    @id @default(autoincrement())
+  service_id              BigInt?
+  points                  Json?
+  mobility_gateway_choice mobility_gateway_choice[]
+  service                 service?                  @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "mobility_gateway_choice_location_id_index")
+  @@map("mobility_gateway_choice_location")
+  @@schema("bss")
+}
+
+model mobility_mhz_sla {
+  id                                      Int      @id @default(autoincrement())
+  service_id                              BigInt?  @unique
+  eirp_density_dbw_hz                     Float?
+  input_pfd_dbw_m2                        Float?
+  gain_over_temp_db_k                     Float?
+  uplink_c_over_i_db                      Float?
+  downlink_c_over_i_db                    Float?
+  required_uplink_mhz                     Float?
+  required_downlink_mhz                   Float?
+  terminal_id                             BigInt?
+  following_beam                          Boolean?
+  start_time                              BigInt?
+  is_relative                             Boolean?
+  period_duration_hrs                     Float?
+  path_adaptation_via_baseband_authorized Boolean?
+  beam_grid_areas                         Json?
+  service                                 service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("mobility_mhz_sla")
+  @@schema("bss")
+}
+
+model mobility_route_point {
+  service_id BigInt
+  time_s     BigInt
+  points     Json?
+  service    service @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([service_id, time_s])
+  @@index([time_s], map: "mobility_route_point_time_s_index")
+  @@map("mobility_route_point")
+  @@schema("bss")
+}
+
+model point_to_multi_point_sla {
+  id                        Int      @id @default(autoincrement())
+  service_id                BigInt?  @unique
+  uplink_location           Json?
+  target_downlink_locations Json?
+  bandwidth_mhz             Float?
+  eirp_density_dbw_hz       Float?
+  input_pfd_dbw_m2          Float?
+  gain_over_temp_db_k       Float?
+  uplink_c_over_i_db        Float?
+  downlink_c_over_i_db      Float?
+  service                   service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("point_to_multi_point_sla")
+  @@schema("bss")
+}
+
+model point_to_single_point_sla {
+  id                         Int      @id @default(autoincrement())
+  service_id                 BigInt?  @unique
+  terminal_id                BigInt?
+  uplink_location            Json?
+  target_downlink_location   Json?
+  max_information_mbps       Float?
+  committed_information_mbps Float?
+  availability_target_perc   Float?
+  service                    service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("point_to_single_point_sla")
+  @@schema("bss")
+}
+
+model polarization_constraint {
+  id                         Int      @id @default(autoincrement())
+  service_id                 BigInt?
+  geodetic_single_area       Json?
+  max_copol_eirp_dbw         Float?
+  max_copol_directivity_db   Float?
+  min_xpol_discrimination_db Float?
+  service                    service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "polarization_constraint_id_index")
+  @@map("polarization_constraint")
+  @@schema("bss")
+}
+
+model service {
+  id                               BigInt                             @id
+  service_group_id                 BigInt?
+  start_time                       BigInt?
+  stop_time                        BigInt?
+  name                             String?                            @db.VarChar
+  customer_name                    String?                            @db.VarChar
+  priority                         Int?
+  gateway_handover_permitted       Boolean?
+  defrag_userlink_freq_permitted   Boolean?
+  gain_mode                        gain_mode?
+  allowed_sat_systems              String[]                           @db.VarChar
+  permitted_uplink_freq_ranges     Json?
+  permitted_downlink_freq_ranges   Json?
+  service_beam_type                beam_type
+  service_sla_type                 sla_type
+  dth_copol_data                   dth_copol_data[]
+  dth_eirp_data                    dth_eirp_data[]
+  dth_sla                          dth_sla?
+  gateway_choice                   gateway_choice[]
+  gateway_datarate_sla             gateway_datarate_sla?
+  gateway_mhz_sla                  gateway_mhz_sla?
+  mobility_datarate_sla            mobility_datarate_sla?
+  mobility_gateway_choice_location mobility_gateway_choice_location[]
+  mobility_mhz_sla                 mobility_mhz_sla?
+  mobility_route_point             mobility_route_point[]
+  point_to_multi_point_sla         point_to_multi_point_sla?
+  point_to_single_point_sla        point_to_single_point_sla?
+  polarization_constraint          polarization_constraint[]
+  spot_cell                        spot_cell[]
+  trunking_sla                     trunking_sla?
+
+  @@map("service")
+  @@schema("bss")
+}
+
+model spot_cell {
+  id                 Int      @id @default(autoincrement())
+  service_id         BigInt?
+  center             Json?
+  area               Json?
+  cell_id            BigInt?
+  baseband_beam_ids  BigInt[]
+  satellite_beam_ids BigInt[]
+  service            service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "spot_cell_id_index")
+  @@map("spot_cell")
+  @@schema("bss")
+}
+
+model trunking_sla {
+  id                         Int      @id @default(autoincrement())
+  service_id                 BigInt?  @unique
+  terminal_id                BigInt?
+  uplink_location            Json?
+  target_downlink_location   Json?
+  max_information_mbps       Float?
+  committed_information_mbps Float?
+  availability_target_perc   Float?
+  service                    service? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([service_id], map: "trunking_sla_id_index")
+  @@map("trunking_sla")
+  @@schema("bss")
+}
+
+// *****************************************************************************
+//   SCHÉMA STATS
+// *****************************************************************************
+
+enum status {
+  Good
+  Warning
+  Critical
+  Unknown
+
+  @@schema("stats")
+}
+
+model KpiBeam {
+  beam_id                             BigInt @id
+  min_fwd_downlink_c_over_n           Float?
+  max_fwd_downlink_c_over_n           Float?
+  avg_fwd_downlink_c_over_n           Float?
+  min_rtn_uplink_c_over_n             Float?
+  max_rtn_uplink_c_over_n             Float?
+  avg_rtn_uplink_c_over_n             Float?
+  min_fwd_downlink_aggregate_c_over_i Float?
+  max_fwd_downlink_aggregate_c_over_i Float?
+  avg_fwd_downlink_aggregate_c_over_i Float?
+  min_rtn_uplink_aggregate_c_over_i   Float?
+  max_rtn_uplink_aggregate_c_over_i   Float?
+  avg_rtn_uplink_aggregate_c_over_i   Float?
+  min_rtn_uplink_eirp                 Float?
+  max_rtn_uplink_eirp                 Float?
+  avg_rtn_uplink_eirp                 Float?
+  min_rtn_uplink_g_over_t             Float?
+  max_rtn_uplink_g_over_t             Float?
+  avg_rtn_uplink_g_over_t             Float?
+  min_fwd_downlink_eirp               Float?
+  max_fwd_downlink_eirp               Float?
+  avg_fwd_downlink_eirp               Float?
+  min_fwd_spectral_efficiency         Float?
+  max_fwd_spectral_efficiency         Float?
+  avg_fwd_spectral_efficiency         Float?
+  min_rtn_spectral_efficiency         Float?
+  max_rtn_spectral_efficiency         Float?
+  avg_rtn_spectral_efficiency         Float?
+  min_fwd_es_over_no                  Float?
+  max_fwd_es_over_no                  Float?
+  avg_fwd_es_over_no                  Float?
+  min_rtn_es_over_no                  Float?
+  max_rtn_es_over_no                  Float?
+  avg_rtn_es_over_no                  Float?
+  aggregate_fwd_allocated_capacity    Float?
+  aggregate_rtn_allocated_capacity    Float?
+  aggregate_fwd_demanded_capacity     Float?
+  aggregate_rtn_demanded_capacity     Float?
+  min_fwd_downlink_eirp_density       Float?
+  max_fwd_downlink_eirp_density       Float?
+  avg_fwd_downlink_eirp_density       Float?
+  fwd_loading_ratio                   Float?
+  fwd_channel_count                   Int?
+  fwd_bandwidth_demand                Float?
+  fwd_polarization                    Float?
+  fwd_min_frequency                   Float?
+  fwd_max_frequency                   Float?
+  fwd_allocated_bandwidth             Float?
+  fwd_delta                           Float?
+  rtn_loading_ratio                   Float?
+  rtn_channel_count                   Int?
+  rtn_bandwidth_demand                Float?
+  rtn_polarization                    Float?
+  rtn_min_frequency                   Float?
+  rtn_max_frequency                   Float?
+  rtn_allocated_bandwidth             Float?
+  rtn_delta                           Float?
+
+  @@map("kpi_beam")
+  @@schema("stats")
+}
+
+model KpiGateway {
+  gateway_id   BigInt @id
+  antenna_size Float?
+
+  @@map("kpi_gateway")
+  @@schema("stats")
+}
+
+model KpiRegion {
+  region_id                         BigInt @id
+  avg_satellite_eirp                Float?
+  avg_satellite_g_over_t            Float?
+  avg_fwd_c_over_i                  Float?
+  avg_rtn_c_over_i                  Float?
+  avg_fwd_c_over_n                  Float?
+  avg_fwd_c_over_ni                 Float?
+  avg_rtn_c_over_n                  Float?
+  avg_fwd_es_over_no                Float?
+  avg_rtn_es_over_no                Float?
+  avg_fwd_spectral_efficiency       Float?
+  avg_rtn_spectral_efficiency       Float?
+  avg_fwd_required_capacity         Float?
+  avg_rtn_required_capacity         Float?
+  avg_fwd_allocated_capacity        Float?
+  avg_rtn_allocated_capacity        Float?
+  avg_fwd_capacity_delta            Float?
+  avg_rtn_capacity_delta            Float?
+  fwd_aggregate_bandwidth           Float?
+  fwd_aggregate_allocated_bandwidth Float?
+  fwd_loading_ratio                 Float?
+  rtn_aggregate_bandwidth           Float?
+  rtn_aggregate_allocated_bandwidth Float?
+  rtn_loading_ratio                 Float?
+  avg_eirp_density                  Float?
+
+  @@map("kpi_region")
+  @@schema("stats")
+}
+
+model KpiTerminal {
+  terminal_id                 BigInt @id
+  avg_fwd_downlink_eirp       Float?
+  avg_rtn_uplink_eirp         Float?
+  avg_fwd_spectral_efficiency Float?
+  avg_rtn_spectral_efficiency Float?
+  avg_fwd_es_over_no          Float?
+  avg_rtn_es_over_no          Float?
+  fwd_allocated_capacity      Float?
+  rtn_allocated_capacity      Float?
+  fwd_demanded_capacity       Float?
+  rtn_demanded_capacity       Float?
+  fwd_satellite_eirp_density  Float?
+  fwd_directivity             Float?
+  fwd_c_over_i                Float?
+  fwd_terminal_g_over_t       Float?
+  fwd_c_over_n                Float?
+  fwd_bandwidth_demand        Float?
+  fwd_allocated_bandwidth     Float?
+  fwd_bandwidth_delta         Float?
+  fwd_loading_ratio           Float?
+  rtn_satellite_g_over_t      Float?
+  rtn_directivity             Float?
+  rtn_terminal_eirp_density   Float?
+  rtn_c_over_n                Float?
+  rtn_c_over_i                Float?
+  rtn_bandwidth_demand        Float?
+  rtn_allocated_bandwidth     Float?
+  rtn_bandwidth_delta         Float?
+  rtn_loading_ratio           Float?
+
+  @@map("kpi_terminal")
+  @@schema("stats")
+}
+
+model StatusBeam {
+  beam_id               BigInt  @id
+  status                status?
+  forward_loading_ratio Float?
+  return_loading_ratio  Float?
+
+  @@map("status_beam")
+  @@schema("stats")
+}
+
+model StatusGateway {
+  gateway_id BigInt  @id
+  status     status?
+
+  @@map("status_gateway")
+  @@schema("stats")
+}
+
+model StatusTerminal {
+  terminal_id BigInt  @id
+  status      status?
+
+  @@map("status_terminal")
+  @@schema("stats")
+}
+
+// *****************************************************************************
+//   SCHÉMA LOGGING
+// *****************************************************************************
+
+enum log_severity {
+  Info
+  Warning
+  Error
+  Critical
+
+  @@schema("logging")
+}
+
+model EventLog {
+  id        Int           @id @default(autoincrement())
+  timestamp DateTime?     @db.Timestamp(6)
+  severity  log_severity?
+  component String?       @db.VarChar
+  message   String?       @db.VarChar
+
+  @@map("event_log")
+  @@schema("logging")
+}
+
+// *****************************************************************************
+//   SCHÉMA GATEWAY_INTERFACE
+// *****************************************************************************
+
+enum gateway_failure_category {
+  Antenna
+  Modem
+  HPA
+  Other
+
+  @@schema("gateway_interface")
+}
+
+model FailureNotification {
+  id                 Int                       @id @default(autoincrement())
+  message_time       DateTime?                 @db.Timestamp(6)
+  event_time         DateTime?                 @db.Timestamp(6)
+  gateway_id         BigInt?
+  is_gateway_failure Boolean?
+  failure_category   gateway_failure_category?
+  event_description  String?                   @db.VarChar
+
+  @@index([gateway_id], map: "failure_notification_gateway_id_index")
+  @@index([event_time], map: "failure_notification_time_index")
+  @@map("failure_notification")
+  @@schema("gateway_interface")
+}
+
+// *****************************************************************************
+//   SCHÉMA PARAMETERS
+// *****************************************************************************
+
+model GeneralGatewayMeasurement {
+  id                      Int     @id @default(autoincrement())
+  filter_width            BigInt?
+  target_uplink_frequency Float?
+
+  @@map("general_gateway_measurement")
+  @@schema("parameters")
+}
+
+model PerGatewayMeasurement {
+  gateway_id                  BigInt @id
+  min_operational_attenuation Float?
+  max_operational_attenuation Float?
+  max_valid_attenuation       Float?
+
+  @@map("per_gateway_measurement")
+  @@schema("parameters")
+}
