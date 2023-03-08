@@ -45,7 +45,7 @@ export function SignIn() {
             <FlexContainer flexDirection="column">
               <FlexItem>
                 <Heading variant="T7" weight="bold">
-                  Welcome to KOS!
+                  Welcome to PROS!
                 </Heading>
               </FlexItem>
               <FlexItem marginBottom="2rem" marginTop="1rem">

@@ -10,7 +10,7 @@ import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 
 import { store } from '../../app/store';
-import logo from '../../assets/images/kos-logo.svg';
+import logo from '../../assets/images/pros-logo.png';
 import { useGetKPIQuery } from '../../features/kpi/kpiSlice';
 import { useGetLinkBudgetQuery } from '../../features/linkBudget/linkBudgetSlice';
 import {
@@ -193,7 +193,7 @@ export function Home() {
             cursor: 'pointer',
           }}
         >
-          <img src={logo} alt={'KOS Logo'} style={{ height: '34px' }} />
+          <img src={logo} alt={'KOS Logo'} style={{ height: '50px' }} />
           <KUI.Icon iconTitle={'nub arrow'} rotation={'up'} fill={'white'} size={1.8} />
         </button>
         <KUI.Dropdown

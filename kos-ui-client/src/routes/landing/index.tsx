@@ -8,7 +8,7 @@ import {
 } from '@kythera/kui-components';
 
 import background from '../../assets/images/landing_bg.svg';
-import logo from '../../assets/images/logo.svg';
+import logo from '../../assets/images/pros-logo.png';
 import { SignIn } from '../../features/auth/components';
 
 export function Landing() {
@@ -20,7 +20,7 @@ export function Landing() {
         style={{ backgroundImage: `url(${background})` }}
       >
         <Figure position="absolute" top="45%" left="20%">
-          <Image src={logo} alt="KOS logo" />
+          <Image src={logo} alt="KOS logo" width="35rem" />
         </Figure>
       </Section>
       <Section width="40vw" height="100vh" backgroundColor={theme.colors.greyScale[300]}>
